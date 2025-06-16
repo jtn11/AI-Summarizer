@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Summariser</title>
+</head>
+<link rel="stylesheet" href="popup.css">
+
+<body">
+    <div class="heading">
+        <h1>AI Summary</h1>
+    </div>
+
+    <div class="options">
+        <div class="option-header">
+            <select name="" id="summary-type">
+                <option value="brief">Brief</option>
+                <option value="detailed">Detailed</option>
+                <option value="bullets">Bullet Points</option>
+            </select>
+            <div>
+                <button id="summarize">Summarize</button>
+                <button id="copy-btn">Copy</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="SummarySection">
+        <pre id="result">Select a type and Click Summarise</pre>
+    </div>
+
+    </body>
+    <script src="popup.js"></script>
+
+</html>
