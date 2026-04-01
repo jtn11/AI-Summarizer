@@ -1,17 +1,22 @@
-document.addEventListener("DOMContentLoaded" , ()=>{
-    chrome.storage.sync.get(['geminiApiKey'],(geminiApiKey)=>{
-        if(geminiApiKey) {
-            document.getElementById('api-key').value = geminiApiKey;
+document.addEventListener("DOMContentLoaded", () => {
+    // Fetch the key correctly to avoid [object Object] bug
+    chrome.storage.sync.get(['groqApiKey'], (result) => {
+        if (result.groqApiKey) {
+            document.getElementById('api-key').value = result.groqApiKey;
         }
-    })
+    });
 
-    document.getElementById("save-button").addEventListener("click" , ()=>{
+    document.getElementById("save-button").addEventListener("click", () => {
         const apikey = document.getElementById("api-key").value.trim();
-        if(!apikey) return ; 
+        if (!apikey) return;
 
-        chrome.storage.sync.set({geminiApiKey : apikey},()=>{
-            document.getElementById("success-message").style.display = 'block';
-            setTimeout(()=>window.close() ,1000);
+        chrome.storage.sync.set({ groqApiKey: apikey }, () => {
+            const msg = document.getElementById("success-message");
+            msg.style.display = 'block';
+            setTimeout(() => {
+                msg.style.display = 'none';
+                window.close();
+            }, 1000);
         });
-    })
-})
+    });
+});

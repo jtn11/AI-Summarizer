@@ -1,78 +1,79 @@
 document.getElementById("summarize").addEventListener("click", () => {
     const resultDiv = document.getElementById("result");
     const summaryType = document.getElementById("summary-type").value;
+    const btn = document.getElementById("summarize");
 
     resultDiv.textContent = "Extracting Text...";
+    btn.disabled = true;
 
-    // Get user's API key
-    chrome.storage.sync.get(['geminiApiKey'], ({ geminiApiKey }) => {
-        if (!geminiApiKey) {
-            resultDiv.textContent = "No API key set. Click the gear icon to add one";
+    // Check for API key first
+    chrome.storage.sync.get(['groqApiKey'], ({ groqApiKey }) => {
+        if (!groqApiKey) {
+            resultDiv.innerHTML = 'No API key set. <a href="#" id="open-options">Click here to add one</a>';
+            document.getElementById("open-options").addEventListener("click", () => {
+                chrome.runtime.openOptionsPage();
+            });
+            btn.disabled = false;
             return;
         }
 
         // Get content from active tab
         chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+            if (!tab) {
+                resultDiv.textContent = "Error: Could not find active tab.";
+                btn.disabled = false;
+                return;
+            }
+
             chrome.tabs.sendMessage(
                 tab.id,
                 { type: "GET_ARTICLE_TEXT" },
-                async (response) => {
+                (response) => {
                     if (chrome.runtime.lastError) {
-                        resultDiv.textContent = "Error: " + chrome.runtime.lastError.message;
+                        resultDiv.textContent = "Error: Please reload the page to allow script execution.";
+                        btn.disabled = false;
                         return;
                     }
                     
-                    if (!response || !response.text) {
-                        resultDiv.textContent = "Couldn't extract text from this page";
+                    if (!response || !response.text || response.text.trim() === "") {
+                        resultDiv.textContent = "Couldn't extract readable text from this page.";
+                        btn.disabled = false;
                         return;
                     }
 
-                    // Send text to Gemini
-                    try {
-                        const summary = await getGeminiSummary(response.text, summaryType, geminiApiKey);
-                        resultDiv.textContent = summary;
-                    } catch (error) {
-                        resultDiv.textContent = "Gemini Error: " + error.message;
-                    }
+                    resultDiv.textContent = "Generating Summary with Groq...";
+
+                    // Send text to background service worker
+                    chrome.runtime.sendMessage(
+                        { 
+                            type: "SUMMARIZE_ARTICLE", 
+                            text: response.text, 
+                            summaryType: summaryType 
+                        },
+                        (bgResponse) => {
+                            btn.disabled = false;
+                            
+                            if (chrome.runtime.lastError) {
+                                resultDiv.textContent = "Background script error: " + chrome.runtime.lastError.message;
+                                return;
+                            }
+
+                            if (bgResponse.error) {
+                                resultDiv.textContent = "Groq Error: " + bgResponse.error;
+                            } else {
+                                resultDiv.textContent = bgResponse.summary;
+                            }
+                        }
+                    );
                 }
             );
         });
     });
 });
 
-async function getGeminiSummary(rawText, type, apikey) {
-    const max = 20000;
-    const text = rawText.length > max ? rawText.slice(0, max) + "..." : rawText;
-
-    const promptMap = {
-        brief: `Summarize this in 5-6 sentences:\n\n${text}`,
-        detailed: `Give a detailed summary:\n\n${text}`,
-        bullets: `Summarize in 6-7 bullet points (start each line with "-"):\n\n${text}`,
-    };
-
-    const prompt = promptMap[type] || promptMap.brief;
-
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apikey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.2 }
-        })
-    });
-
-    if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error?.message || "Request Failed");
-    }
-
-    const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Summary";
-}
-
 document.getElementById("copy-btn").addEventListener("click", () => {
     const txt = document.getElementById("result").innerText;
-    if (!txt || txt === "Extracting Text..." || txt.includes("Error")) return;
+    if (!txt || txt.includes("Extracting") || txt.includes("Generating") || txt.includes("Error") || txt.includes("No API key")) return;
 
     navigator.clipboard.writeText(txt).then(() => {
         const btn = document.getElementById("copy-btn");
@@ -81,3 +82,10 @@ document.getElementById("copy-btn").addEventListener("click", () => {
         setTimeout(() => (btn.textContent = oldText), 2000);
     });
 });
+
+const settingsBtn = document.getElementById("settings-btn");
+if (settingsBtn) {
+    settingsBtn.addEventListener("click", () => {
+        chrome.runtime.openOptionsPage();
+    });
+}
